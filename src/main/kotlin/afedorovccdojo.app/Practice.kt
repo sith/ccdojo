@@ -1,6 +1,8 @@
 package afedorovccdojo.app
 
 interface Practice {
+    val name: String
+
     fun execute(): Summary
 
 }

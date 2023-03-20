@@ -11,6 +11,8 @@ class App(
         while (true) {
             val practice = practiceSelector.pickPractice() ?: break
 
+            println("Starting ${practice.name}")
+
             val summary = practice.execute()
 
             summaryDisplay.show(summary)

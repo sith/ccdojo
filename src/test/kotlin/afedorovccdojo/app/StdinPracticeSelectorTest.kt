@@ -11,6 +11,7 @@ import org.junit.jupiter.api.TestInstance
 import org.junit.jupiter.params.ParameterizedTest
 import org.junit.jupiter.params.provider.Arguments
 import org.junit.jupiter.params.provider.MethodSource
+import java.io.BufferedWriter
 import java.io.PipedInputStream
 import java.io.PipedOutputStream
 import java.util.*
@@ -28,7 +29,8 @@ class StdinPracticeSelectorTest {
 
     private val practiceFactories = listOf(
         PassthroughPracticeFactory(practice1, "description1"),
-        PassthroughPracticeFactory(practice2, "description2"))
+        PassthroughPracticeFactory(practice2, "description2")
+    )
 
     companion object {
         private val practice1 = TestPractice("practice1")
@@ -37,6 +39,7 @@ class StdinPracticeSelectorTest {
         @JvmStatic
         private fun testInput(): Stream<Arguments> {
             return Stream.of(
+                Arguments.of(0, null),
                 Arguments.of(1, practice1),
                 Arguments.of(2, practice2),
             )
@@ -50,7 +53,7 @@ class StdinPracticeSelectorTest {
         pipedInputStream.close()
     }
 
-    class TestPractice(private val name: String) : Practice {
+    class TestPractice(override val name: String) : Practice {
         override fun execute(): Summary = Summary(name)
     }
 
@@ -60,19 +63,42 @@ class StdinPracticeSelectorTest {
     }
 
     @Test
-    fun `returns null if selected exit`() = runBlocking {
+    fun `handles negative index`() = runBlocking {
         val practiceSelector = StdinPracticeSelector(practiceFactories, Scanner(pipedInputStream))
 
         val deferred = async(coroutineDispatcher) { practiceSelector.pickPractice() }
 
-        selectPractice(0)
+        selectPractice(-1)
+
+        assertTrue { deferred.await() == null }
+    }
+
+
+    @Test
+    fun `handles missing index`() = runBlocking {
+        val practiceSelector = StdinPracticeSelector(practiceFactories, Scanner(pipedInputStream))
+
+        val deferred = async(coroutineDispatcher) { practiceSelector.pickPractice() }
+
+        selectPractice(Int.MAX_VALUE)
+
+        assertTrue { deferred.await() == null }
+    }
+
+    @Test
+    fun `handles non-integer input`() = runBlocking {
+        val practiceSelector = StdinPracticeSelector(practiceFactories, Scanner(pipedInputStream))
+
+        val deferred = async(coroutineDispatcher) { practiceSelector.pickPractice() }
+
+        pipedWriter.println("Hello")
 
         assertTrue { deferred.await() == null }
     }
 
     @ParameterizedTest
     @MethodSource("testInput")
-    fun `selects practice`(index: Int, expectedPractice: Practice) = runBlocking {
+    fun `selects practice`(index: Int, expectedPractice: Practice?) = runBlocking {
         val practiceSelector = StdinPracticeSelector(practiceFactories, Scanner(pipedInputStream))
 
         val deferred = async(coroutineDispatcher) { practiceSelector.pickPractice() }
@@ -82,8 +108,12 @@ class StdinPracticeSelectorTest {
     }
 
     private fun selectPractice(index: Int) {
-        pipedWriter.write(index.toString())
-        pipedWriter.newLine()
-        pipedWriter.flush()
+        pipedWriter.println(index.toString())
+    }
+
+    private fun BufferedWriter.println(string: String) {
+        write(string)
+        newLine()
+        flush()
     }
 }
